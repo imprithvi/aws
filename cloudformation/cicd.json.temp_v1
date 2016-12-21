@@ -1,0 +1,99 @@
+{
+"AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Build EC2 Instance in Public network and A CodeDeploy application, bootstraps EC2 instance to work with CodeDeploy",
+
+  "Parameters": {
+
+    "InstanceName" : {
+      "Description": "Instance Name",
+      "Type": "String"
+    }
+
+  },
+  "Mappings" : {
+    "aAMI": {
+      "us-east-1" : { "32" : "ami-6411e20d", "64" : "ami-7a11e213" },
+      "us-west-1" : { "32" : "ami-c9c7978c", "64" : "ami-cfc7978a" },
+      "eu-west-1" : { "32" : "ami-37c2f643", "64" : "ami-31c2f645" },
+      "us-west-2" : { "32" : "ami-a9d276c8", "64" : "ami-d732f0b7" },
+      "ap-southeast-1" : { "32" : "ami-66f28c34", "64" : "ami-60f28c32" },
+      "ap-northeast-1" : { "32" : "ami-9c03a89d", "64" : "ami-a003a8a1" }
+    }
+  },
+
+
+  "Resources" : {
+
+#    "NATIPAddress" : {
+#      "Type" : "AWS::EC2::EIP",
+#      "Properties" : {
+#        "Domain" : "vpc",
+#        "InstanceId" : { "Ref" : "aDevice" }
+#      }
+#    },
+
+    "aCodeDeploynew" : {
+      "Type" : "AWS::CodeDeploy::DeploymentGroup",
+      "Properties" : {
+         "ApplicationName" : "NodeJSAWSDeploy",
+         "DeploymentConfigName" : "CodeDeployDefault.OneAtATime",
+         "DeploymentGroupName" : { "Ref" : "InstanceName"},
+         "Ec2TagFilters" : [
+                     {
+                     "Key" : "Name",
+                     "Type" : "KEY_AND_VALUE",
+                     "Value" : { "Ref" : "InstanceName"}
+                     }
+          ],
+         "ServiceRoleArn" : "arn:aws:iam::512244112598:role/CDCD_CodeDeploy"
+      }
+    },
+
+
+    "aDevice" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "InstanceType" : "t2.micro",
+        "Tags" : [
+            {
+            "Key" : "Name",
+            "Value" : { "Ref" : "InstanceName"}
+            }
+        ],
+        "NetworkInterfaces": [
+            {
+                "AssociatePublicIpAddress": true,
+                "SubnetId" : "subnet-3906224f",
+                "DeviceIndex": "0",
+                "GroupSet" : ["sg-f7deb28e"]
+            }
+        ],
+        "KeyName" : "cicd-poc",
+       # "SubnetId" : "subnet-3906224f",
+        "IamInstanceProfile" : "CICD_CodeDeploy-EC2-Instance-Profile",
+        "SourceDestCheck" : "false",
+        "ImageId" : { "Fn::FindInMap" : [ "aAMI", { "Ref" : "AWS::Region" }, "64" ]},
+       # "SecurityGroupIds" : ["sg-f7deb28e"],
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+        "#!/bin/bash -v\n",
+        "sudo apt-get -y update \n",
+        "sudo apt-get install -y awscli \n",
+        "aws configure set aws_access_key_id XXXXXXXXXXXXXXXX \n",
+        "aws configure set aws_secret_access_key XXXXXXXXXXXXXXXXXXXXXXXXXx \n",
+        "aws configure set default.region us-west-2  \n",
+        "aws s3 cp s3://aws-codedeploy-us-west-2/latest/install ./install-aws-codedeploy-agent --region us-west-2  \n",
+        "sudo apt-get install -y ruby2.0  \n",
+        "sudo chmod 755 ./install-aws-codedeploy-agent  \n",
+        "sudo apt-get install -y nodejs npm    \n",
+        "./install-aws-codedeploy-agent auto  \n"
+        ]]}}
+
+      }
+
+    }
+
+
+   }
+
+}
